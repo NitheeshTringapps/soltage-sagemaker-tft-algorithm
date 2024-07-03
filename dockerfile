@@ -6,17 +6,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir \
+    torch==2.0.1 \
+    optuna==3.4 \
     pandas \
     numpy \
-    torch \
-    pytorch-lightning \
     pytorch-forecasting \
-    boto3
+    boto3 \
+    pytorch-lightning \
+    tensorflow \
+    tensorboard
 
 # Set up the environment variable for SageMaker
 ENV SAGEMAKER_PROGRAM train.py
 ENV SAGEMAKER_SUBMIT_DIRECTORY /opt/ml/code
-ENV SAGEMAKER_REGION us-west-2
+ENV SAGEMAKER_REGION ap-south-1
 
 # Copy the training script to the container
 COPY train.py /opt/ml/code/train.py

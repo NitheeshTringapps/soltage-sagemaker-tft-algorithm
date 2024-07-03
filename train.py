@@ -3,12 +3,16 @@ import pandas as pd
 import numpy as np
 import random
 import torch
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
 from pytorch_forecasting.metrics import QuantileLoss
-from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor
-from pytorch_lightning.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
+from lightning.pytorch.loggers import TensorBoardLogger
 from pytorch_forecasting.data.encoders import NaNLabelEncoder
+import json
+
+import warnings
+warnings.filterwarnings("ignore")  # avoid printing out absolute paths
 
 def set_seed(seed=42):
     torch.manual_seed(seed)
@@ -20,37 +24,30 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def load_data(input_dir):
-    # Load data from CSV file
     return pd.read_csv(os.path.join(input_dir, 'train.csv'))
 
-def train():
+def train(train_start_dt, train_end_dt, prediction_start_dt, prediction_end_dt):
     set_seed(42)
 
     input_dir = '/opt/ml/input/data/training'
     output_dir = '/opt/ml/model'
 
     all_data_merged_df = load_data(input_dir)
-    train_start_dt = "2021-01-01"
-    train_end_dt = "2021-12-31"
-    prediction_start_dt = "2022-01-01"
-    prediction_end_dt = "2022-01-31"
-
-    # Convert train_start_dt and test_start_dt to datetime
     train_start_dt = pd.to_datetime(train_start_dt)
     train_end_dt = pd.to_datetime(train_end_dt)
     prediction_start_dt = pd.to_datetime(prediction_start_dt)
     prediction_end_dt = pd.to_datetime(prediction_end_dt)
 
     data = all_data_merged_df.copy()
+    data['DateTime'] = pd.to_datetime(data['DateTime'])
     data = data[(data['DateTime'] >= train_start_dt)]
     data['time_idx'] = (data['DateTime'] - data['DateTime'].min()) / pd.Timedelta(1, 'H')
     data['time_idx'] = data['time_idx'].astype(int)
 
     all_data = data.copy()
-
     data = data[(data['DateTime'] >= train_start_dt) & (data['DateTime'] <= train_end_dt)]
 
-    max_prediction_length = 24 # last 24 hours
+    max_prediction_length = 24  # last 24 hours
     max_encoder_length = 24
     training_cutoff = data["time_idx"].max() - max_prediction_length
 
@@ -80,16 +77,11 @@ def train():
         },
     )
 
-    # Create validation set (predict=True) which means to predict the last max_prediction_length points in time
-    # for each series
     validation = TimeSeriesDataSet.from_dataset(training, data, predict=True, stop_randomization=True)
-
-    # Create dataloaders for model
     batch_size = 128  # set this between 32 to 128
     train_dataloader = training.to_dataloader(train=True, batch_size=batch_size, num_workers=0)
     val_dataloader = validation.to_dataloader(train=False, batch_size=batch_size * 10, num_workers=0)
 
-    # Configure network and trainer
     early_stop_callback = EarlyStopping(monitor="val_loss", min_delta=1e-4, patience=10, verbose=False, mode="min")
     lr_logger = LearningRateMonitor()  # log the learning rate
     logger = TensorBoardLogger("lightning_logs")  # logging results to a tensorboard
@@ -115,7 +107,6 @@ def train():
     )
     print(f"Number of parameters in network: {tft.size()/1e3:.1f}k")
 
-    # Fit network
     trainer.fit(
         tft,
         train_dataloaders=train_dataloader,
@@ -129,7 +120,21 @@ def train():
     # Save the best model according to the validation loss
     best_model_path = trainer.checkpoint_callback.best_model_path
     best_tft = TemporalFusionTransformer.load_from_checkpoint(best_model_path)
-    best_tft.save(os.path.join(output_dir, 'best_model'))
+    best_tft_path = os.path.join(output_dir, 'best_model')
+    best_tft.save(best_tft_path)
+    print(f"Best model saved to: {best_tft_path}")
 
 if __name__ == '__main__':
-    train()
+    prefix = '/opt/ml/'
+    param_path = os.path.join(prefix, 'input/config/hyperparameters.json')
+    with open(param_path, 'r') as tc:
+        trainingParams = json.load(tc)
+    print("[INFO] Hyperparameters: ", trainingParams)
+
+    print(f"TRAIN_START_DT: {trainingParams['train_start_dt']}")
+    print(f"TRAIN_END_DT: {trainingParams['train_end_dt']}")
+    print(f"PREDICTION_START_DT: {trainingParams['prediction_start_dt']}")
+    print(f"PREDICTION_END_DT: {trainingParams['prediction_end_dt']}")
+
+    # Call the training function
+    train(trainingParams['train_start_dt'], trainingParams['train_end_dt'], trainingParams['prediction_start_dt'], trainingParams['prediction_end_dt'])
