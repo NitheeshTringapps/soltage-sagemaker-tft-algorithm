@@ -112,15 +112,22 @@ def train(train_start_dt, train_end_dt):
 
     tft.eval()
 
-    # Save the model
-    tft_path = os.path.join(output_dir, 'model')
-    torch.save(tft.state_dict(), tft_path)
+    # # Save the model
+    # tft_path = os.path.join(output_dir, 'model')
+    # torch.save(tft.state_dict(), tft_path)
 
-    # Save the best model according to the validation loss
+    # # Save the best model according to the validation loss
+    # best_model_path = trainer.checkpoint_callback.best_model_path
+    # best_tft = TemporalFusionTransformer.load_from_checkpoint(best_model_path)
+    # best_tft_path = os.path.join(output_dir, 'best_model')
+    # torch.save(best_tft.state_dict(), best_tft_path)
+    # print(f"Best model saved to: {best_tft_path}")
+
+    # Save the best model during training
     best_model_path = trainer.checkpoint_callback.best_model_path
     best_tft = TemporalFusionTransformer.load_from_checkpoint(best_model_path)
-    best_tft_path = os.path.join(output_dir, 'best_model')
-    torch.save(best_tft.state_dict(), best_tft_path)
+    best_tft_path = os.path.join(output_dir, 'best_model.pth')  # Save as .pth file
+    torch.save(best_tft, best_tft_path)  # Save entire model
     print(f"Best model saved to: {best_tft_path}")
 
 if __name__ == '__main__':
