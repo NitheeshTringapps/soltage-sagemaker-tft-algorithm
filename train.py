@@ -26,7 +26,7 @@ def set_seed(seed=42):
 def load_data(input_dir):
     return pd.read_csv(os.path.join(input_dir, 'train.csv'))
 
-def train(train_start_dt, train_end_dt, prediction_start_dt, prediction_end_dt):
+def train(train_start_dt, train_end_dt):
     set_seed(42)
 
     input_dir = '/opt/ml/input/data/training'
@@ -35,8 +35,6 @@ def train(train_start_dt, train_end_dt, prediction_start_dt, prediction_end_dt):
     all_data_merged_df = load_data(input_dir)
     train_start_dt = pd.to_datetime(train_start_dt)
     train_end_dt = pd.to_datetime(train_end_dt)
-    prediction_start_dt = pd.to_datetime(prediction_start_dt)
-    prediction_end_dt = pd.to_datetime(prediction_end_dt)
 
     data = all_data_merged_df.copy()
     data['DateTime'] = pd.to_datetime(data['DateTime'])
@@ -44,7 +42,6 @@ def train(train_start_dt, train_end_dt, prediction_start_dt, prediction_end_dt):
     data['time_idx'] = (data['DateTime'] - data['DateTime'].min()) / pd.Timedelta(1, 'H')
     data['time_idx'] = data['time_idx'].astype(int)
 
-    all_data = data.copy()
     data = data[(data['DateTime'] >= train_start_dt) & (data['DateTime'] <= train_end_dt)]
 
     max_prediction_length = 24  # last 24 hours
@@ -113,15 +110,17 @@ def train(train_start_dt, train_end_dt, prediction_start_dt, prediction_end_dt):
         val_dataloaders=val_dataloader,
     )
 
+    tft.eval()
+
     # Save the model
     tft_path = os.path.join(output_dir, 'model')
-    tft.save(tft_path)
+    torch.save(tft.state_dict(), tft_path)
 
     # Save the best model according to the validation loss
     best_model_path = trainer.checkpoint_callback.best_model_path
     best_tft = TemporalFusionTransformer.load_from_checkpoint(best_model_path)
     best_tft_path = os.path.join(output_dir, 'best_model')
-    best_tft.save(best_tft_path)
+    torch.save(best_tft.state_dict(), best_tft_path)
     print(f"Best model saved to: {best_tft_path}")
 
 if __name__ == '__main__':
@@ -133,8 +132,6 @@ if __name__ == '__main__':
 
     print(f"TRAIN_START_DT: {trainingParams['train_start_dt']}")
     print(f"TRAIN_END_DT: {trainingParams['train_end_dt']}")
-    print(f"PREDICTION_START_DT: {trainingParams['prediction_start_dt']}")
-    print(f"PREDICTION_END_DT: {trainingParams['prediction_end_dt']}")
 
     # Call the training function
-    train(trainingParams['train_start_dt'], trainingParams['train_end_dt'], trainingParams['prediction_start_dt'], trainingParams['prediction_end_dt'])
+    train(trainingParams['train_start_dt'], trainingParams['train_end_dt'])
