@@ -26,7 +26,7 @@ def set_seed(seed=42):
 def load_data(input_dir):
     return pd.read_csv(os.path.join(input_dir, 'train.csv'))
 
-def train(train_start_dt, train_end_dt):
+def train(train_start_dt, train_end_dt, accelerator):
     set_seed(42)
 
     input_dir = '/opt/ml/input/data/training'
@@ -85,7 +85,7 @@ def train(train_start_dt, train_end_dt):
 
     trainer = pl.Trainer(
         max_epochs=50,
-        accelerator="cpu",
+        accelerator=accelerator,
         enable_model_summary=True,
         gradient_clip_val=0.156141751871966,
         callbacks=[lr_logger, early_stop_callback],
@@ -137,8 +137,11 @@ if __name__ == '__main__':
         trainingParams = json.load(tc)
     print("[INFO] Hyperparameters: ", trainingParams)
 
+    accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
+
     print(f"TRAIN_START_DT: {trainingParams['train_start_dt']}")
     print(f"TRAIN_END_DT: {trainingParams['train_end_dt']}")
+    print(f"Accelerator: {accelerator}")
 
     # Call the training function
-    train(trainingParams['train_start_dt'], trainingParams['train_end_dt'])
+    train(trainingParams['train_start_dt'], trainingParams['train_end_dt'], accelerator)
