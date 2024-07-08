@@ -14,15 +14,28 @@ RUN pip install --no-cache-dir \
     boto3 \
     pytorch-lightning \
     tensorflow \
-    tensorboard
+    tensorboard \
+    flask \
+    gevent \
+    gunicorn
 
 # Set up the environment variable for SageMaker
-ENV SAGEMAKER_PROGRAM train.py
+ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONDONTWRITEBYTECODE=TRUE
+ENV PATH="/opt/ml/code:${PATH}"
 ENV SAGEMAKER_SUBMIT_DIRECTORY /opt/ml/code
 ENV SAGEMAKER_REGION ap-south-1
 
-# Copy the training script to the container
+# Copy the training and serving scripts to the container
 COPY train.py /opt/ml/code/train.py
+COPY serve.py /opt/ml/code/serve.py
+COPY entrypoint.sh /opt/ml/code/entrypoint.sh
 
-# Define the entry point
-ENTRYPOINT ["python", "/opt/ml/code/train.py"]
+# Ensure the entrypoint script is executable
+RUN chmod +x /opt/ml/code/entrypoint.sh
+
+# Set up the entry point
+ENTRYPOINT ["/opt/ml/code/entrypoint.sh"]
+
+# Expose the port on which the Flask app will run (default is 8080)
+EXPOSE 8080
